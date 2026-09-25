@@ -1,0 +1,3638 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "XCrap API",
+    "version": "1.0.0",
+    "summary": "Read public posts from X as Markdown, JSON, YAML, CSV or HTML. No API key.",
+    "description": "XCrap reads publicly visible posts, threads and profiles from X (formerly\nTwitter) and returns them in whichever of five formats you ask for.\n\n## Authentication\n\nThere is none. No key, no token, no header. Rate limits are applied per IP\naddress and per endpoint.\n\n## Formats\n\nJSON is the default. Add `?format=markdown` (or yaml, csv, html) or send a\nmatching `Accept` header. The query parameter wins when both are present.\n\nMarkdown responses carry an `x-markdown-tokens` header estimating what the\nbody will cost to read, so an agent can budget its context before pulling it.\n\n## What it will not do\n\nXCrap reads public accounts only: their posts, profiles, the replies under\ntheir posts and their follower lists. Protected accounts, direct messages and\nanything behind a personal login return 404. Accounts that have asked to be\nexcluded return 451, and are left out of every list and every set of replies.\n\n## Your responsibility\n\nXCrap is a conduit. You decide what to request and what to do with it, and\nthe compliance obligations that follow are yours.",
+    "termsOfService": "https://xcrap.cc/terms",
+    "contact": {
+      "name": "XCrap",
+      "url": "https://xcrap.cc/about",
+      "email": "legal@xcrap.cc"
+    },
+    "license": {
+      "name": "Free to use",
+      "url": "https://xcrap.cc/terms"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://xcrap.cc",
+      "description": "Production"
+    }
+  ],
+  "externalDocs": {
+    "description": "Guides and examples",
+    "url": "https://xcrap.cc/how-to-use"
+  },
+  "tags": [
+    {
+      "name": "XCrap",
+      "description": "Extraction endpoints. All read-only, all keyless."
+    }
+  ],
+  "paths": {
+    "/v1/tweet": {
+      "get": {
+        "operationId": "tweet",
+        "summary": "One post, fully resolved",
+        "description": "Fetches a single post with its author, every engagement counter, attached media at every bitrate, poll results, and the quoted post unnested one level.\n\nRate limit: 45 requests per 1 minute(s) per IP.\n\nExample:\n\n    https://xcrap.cc/v1/tweet?url=https://x.com/jack/status/20&format=markdown",
+        "tags": [
+          "XCrap"
+        ],
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "The post URL or its numeric id. x.com, twitter.com, the fx/vx mirrors and a bare id all work.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "required": false,
+            "description": "Send Content-Disposition so a browser saves the response as a file.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "signals",
+            "in": "query",
+            "required": false,
+            "description": "Add signals: the post's age, whether it is inside For You's 48-hour window, whether the author may qualify for X's new-author slot, and engagement ratios. Facts from public data, not a ranking score.",
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "Response format: json, markdown, yaml, csv or html. Overrides the Accept header.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "markdown",
+                "yaml",
+                "csv",
+                "html"
+              ],
+              "default": "json"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "description": "Skip the cache and refetch from upstream. Use sparingly.",
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tweet"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "# jack (@jack)\n\njust setting up my twttr"
+              },
+              "application/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or malformed. Check it against this page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The post or account is deleted, suspended, private, or never existed. For a post, reason says which when X tells us: post_deleted, author_protected, author_suspended, withheld, removed_by_x, age_restricted, or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Endpoint budget exhausted. Wait for the period in retry-after, or see the enterprise plan for higher limits.",
+            "headers": {
+              "retry-after": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait."
+              },
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "451": {
+            "description": "That account asked to be excluded from XCrap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Every source refused. Usually brief; retry in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/thread": {
+      "get": {
+        "operationId": "thread",
+        "summary": "A whole thread, unrolled in order",
+        "description": "Give it any post in a thread, including the first, and it returns the author's posts in reading order. X only exposes a post's parent, so XCrap stitches the author's timeline by conversation id to walk the thread forwards.\n\nRate limit: 15 requests per 1 minute(s) per IP.\n\nExample:\n\n    https://xcrap.cc/v1/thread?url=https://x.com/naval/status/1002103360646823936&format=markdown",
+        "tags": [
+          "XCrap"
+        ],
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "Any post in the thread.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "max_tweets",
+            "in": "query",
+            "required": false,
+            "description": "How deep to go, 1 to 100. The response says whether it was truncated.",
+            "schema": {
+              "type": "integer",
+              "default": "25"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "Response format: json, markdown, yaml, csv or html. Overrides the Accept header.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "markdown",
+                "yaml",
+                "csv",
+                "html"
+              ],
+              "default": "json"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "description": "Skip the cache and refetch from upstream. Use sparingly.",
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Thread"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "# jack (@jack)\n\njust setting up my twttr"
+              },
+              "application/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or malformed. Check it against this page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The post or account is deleted, suspended, private, or never existed. For a post, reason says which when X tells us: post_deleted, author_protected, author_suspended, withheld, removed_by_x, age_restricted, or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Endpoint budget exhausted. Wait for the period in retry-after, or see the enterprise plan for higher limits.",
+            "headers": {
+              "retry-after": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait."
+              },
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "451": {
+            "description": "That account asked to be excluded from XCrap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Every source refused. Usually brief; retry in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/replies": {
+      "get": {
+        "operationId": "replies",
+        "summary": "The replies under a post",
+        "description": "One page of the replies to a post, most liked first or newest first, with the post itself included. Only direct replies come back: a reply to a reply belongs to its own conversation. There is no paging: this is the single page X serves for the post, up to about a hundred replies.\n\nRate limit: 15 requests per 1 minute(s) per IP.\n\nExample:\n\n    https://xcrap.cc/v1/replies?url=https://x.com/naval/status/1002103360646823936&sort=top&format=markdown",
+        "tags": [
+          "XCrap"
+        ],
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "The post whose replies to read: its URL or numeric id.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "top for the most liked first, recent for the newest first.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "top",
+                "recent"
+              ],
+              "default": "top"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "Response format: json, markdown, yaml, csv or html. Overrides the Accept header.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "markdown",
+                "yaml",
+                "csv",
+                "html"
+              ],
+              "default": "json"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "description": "Skip the cache and refetch from upstream. Use sparingly.",
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Replies"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "# jack (@jack)\n\njust setting up my twttr"
+              },
+              "application/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or malformed. Check it against this page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The post or account is deleted, suspended, private, or never existed. For a post, reason says which when X tells us: post_deleted, author_protected, author_suspended, withheld, removed_by_x, age_restricted, or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Endpoint budget exhausted. Wait for the period in retry-after, or see the enterprise plan for higher limits.",
+            "headers": {
+              "retry-after": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait."
+              },
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "451": {
+            "description": "That account asked to be excluded from XCrap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Every source refused. Usually brief; retry in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/search": {
+      "get": {
+        "operationId": "search",
+        "summary": "Search posts",
+        "description": "Full-text search over X, with the operators X search understands: from:, to:, \"exact phrase\", -exclude, lang:, filter:links and the rest. Choose the latest or top posts, or only posts with photos or videos. One page per call; pass next_cursor for the next. Search has the tightest budget of any endpoint, and its results are cached for ten minutes.\n\nRate limit: 10 requests per 15 minute(s) per IP.\n\nExample:\n\n    https://xcrap.cc/v1/search?q=from:nasa%20mars&feed=latest&format=markdown",
+        "tags": [
+          "XCrap"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "What to search for, including any X search operators.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "feed",
+            "in": "query",
+            "required": false,
+            "description": "latest, top, photos or videos.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "latest",
+                "top",
+                "photos",
+                "videos"
+              ],
+              "default": "latest"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "description": "Oldest post to match, as a date such as 2025-01-01 or a full ISO timestamp.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "description": "Newest post to match, as a date or a full ISO timestamp.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "The next_cursor from a previous response.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "Response format: json, markdown, yaml, csv or html. Overrides the Accept header.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "markdown",
+                "yaml",
+                "csv",
+                "html"
+              ],
+              "default": "json"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "description": "Skip the cache and refetch from upstream. Use sparingly.",
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResult"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "# jack (@jack)\n\njust setting up my twttr"
+              },
+              "application/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or malformed. Check it against this page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The post or account is deleted, suspended, private, or never existed. For a post, reason says which when X tells us: post_deleted, author_protected, author_suspended, withheld, removed_by_x, age_restricted, or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Endpoint budget exhausted. Wait for the period in retry-after, or see the enterprise plan for higher limits.",
+            "headers": {
+              "retry-after": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait."
+              },
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "451": {
+            "description": "That account asked to be excluded from XCrap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Every source refused. Usually brief; retry in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Search capacity is used up for now, or search is not set up. Wait for retry-after.",
+            "headers": {
+              "retry-after": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds until search capacity returns."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/user": {
+      "get": {
+        "operationId": "user",
+        "summary": "A profile",
+        "description": "Bio, location, website, join date, verification type, avatar and banner at full resolution, and the follower, following, post and media counts.\n\nRate limit: 45 requests per 1 minute(s) per IP.\n\nExample:\n\n    https://xcrap.cc/v1/user?handle=naval&format=markdown",
+        "tags": [
+          "XCrap"
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "query",
+            "required": true,
+            "description": "The handle, with or without the @, or a full profile URL.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "Response format: json, markdown, yaml, csv or html. Overrides the Accept header.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "markdown",
+                "yaml",
+                "csv",
+                "html"
+              ],
+              "default": "json"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "description": "Skip the cache and refetch from upstream. Use sparingly.",
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "# jack (@jack)\n\njust setting up my twttr"
+              },
+              "application/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or malformed. Check it against this page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The post or account is deleted, suspended, private, or never existed. For a post, reason says which when X tells us: post_deleted, author_protected, author_suspended, withheld, removed_by_x, age_restricted, or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Endpoint budget exhausted. Wait for the period in retry-after, or see the enterprise plan for higher limits.",
+            "headers": {
+              "retry-after": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait."
+              },
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "451": {
+            "description": "That account asked to be excluded from XCrap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Every source refused. Usually brief; retry in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/user/tweets": {
+      "get": {
+        "operationId": "userTweets",
+        "summary": "An account's posts",
+        "description": "A page of an account's posts, newest first. Paging is by cursor rather than offset, because a timeline moves while you read it and an offset would silently skip or repeat posts.\n\nRate limit: 15 requests per 1 minute(s) per IP.\n\nExample:\n\n    https://xcrap.cc/v1/user/tweets?handle=naval&count=20",
+        "tags": [
+          "XCrap"
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "query",
+            "required": true,
+            "description": "The account to read.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "required": false,
+            "description": "How many posts to return, 1 to 100.",
+            "schema": {
+              "type": "integer",
+              "default": "20"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "The next_cursor from a previous response.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "exclude_replies",
+            "in": "query",
+            "required": false,
+            "description": "Leave out replies the account made to other people.",
+            "schema": {
+              "type": "boolean",
+              "default": "true"
+            }
+          },
+          {
+            "name": "media_only",
+            "in": "query",
+            "required": false,
+            "description": "Only posts carrying an image or video.",
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "Response format: json, markdown, yaml, csv or html. Overrides the Accept header.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "markdown",
+                "yaml",
+                "csv",
+                "html"
+              ],
+              "default": "json"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "description": "Skip the cache and refetch from upstream. Use sparingly.",
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Timeline"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "# jack (@jack)\n\njust setting up my twttr"
+              },
+              "application/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or malformed. Check it against this page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The post or account is deleted, suspended, private, or never existed. For a post, reason says which when X tells us: post_deleted, author_protected, author_suspended, withheld, removed_by_x, age_restricted, or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Endpoint budget exhausted. Wait for the period in retry-after, or see the enterprise plan for higher limits.",
+            "headers": {
+              "retry-after": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait."
+              },
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "451": {
+            "description": "That account asked to be excluded from XCrap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Every source refused. Usually brief; retry in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/user/followers": {
+      "get": {
+        "operationId": "userFollowers",
+        "summary": "Who follows an account",
+        "description": "One page of the accounts following this one, each as a full profile. X decides the page size, usually a few dozen; pass next_cursor for the next page, and it is null on the last one.\n\nRate limit: 15 requests per 1 minute(s) per IP.\n\nExample:\n\n    https://xcrap.cc/v1/user/followers?handle=jack&format=markdown",
+        "tags": [
+          "XCrap"
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "query",
+            "required": true,
+            "description": "The account whose followers to list.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "The next_cursor from a previous response.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "Response format: json, markdown, yaml, csv or html. Overrides the Accept header.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "markdown",
+                "yaml",
+                "csv",
+                "html"
+              ],
+              "default": "json"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "description": "Skip the cache and refetch from upstream. Use sparingly.",
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserList"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "# jack (@jack)\n\njust setting up my twttr"
+              },
+              "application/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or malformed. Check it against this page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The post or account is deleted, suspended, private, or never existed. For a post, reason says which when X tells us: post_deleted, author_protected, author_suspended, withheld, removed_by_x, age_restricted, or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Endpoint budget exhausted. Wait for the period in retry-after, or see the enterprise plan for higher limits.",
+            "headers": {
+              "retry-after": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait."
+              },
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "451": {
+            "description": "That account asked to be excluded from XCrap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Every source refused. Usually brief; retry in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/user/following": {
+      "get": {
+        "operationId": "userFollowing",
+        "summary": "Who an account follows",
+        "description": "One page of the accounts this one follows, each as a full profile. X decides the page size; pass next_cursor for the next page, and it is null on the last one.\n\nRate limit: 15 requests per 1 minute(s) per IP.\n\nExample:\n\n    https://xcrap.cc/v1/user/following?handle=jack&format=markdown",
+        "tags": [
+          "XCrap"
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "query",
+            "required": true,
+            "description": "The account whose follows to list.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "The next_cursor from a previous response.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "Response format: json, markdown, yaml, csv or html. Overrides the Accept header.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "markdown",
+                "yaml",
+                "csv",
+                "html"
+              ],
+              "default": "json"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "description": "Skip the cache and refetch from upstream. Use sparingly.",
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserList"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "# jack (@jack)\n\njust setting up my twttr"
+              },
+              "application/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or malformed. Check it against this page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The post or account is deleted, suspended, private, or never existed. For a post, reason says which when X tells us: post_deleted, author_protected, author_suspended, withheld, removed_by_x, age_restricted, or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Endpoint budget exhausted. Wait for the period in retry-after, or see the enterprise plan for higher limits.",
+            "headers": {
+              "retry-after": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait."
+              },
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "451": {
+            "description": "That account asked to be excluded from XCrap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Every source refused. Usually brief; retry in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/user/history": {
+      "get": {
+        "operationId": "userHistory",
+        "summary": "An account's posts, in bulk",
+        "description": "Walks an account's timeline and returns up to 1,000 posts in one response, newest first, optionally inside a date window. The walk takes about a second per twenty posts, so for a large export ask for format=ndjson: posts then arrive one per line as they are fetched, roughly newest first, instead of all at once at the end. The further back a window sits, the patchier X's own timeline is, so a years-old window can come back thin or empty.\n\nRate limit: 4 requests per 5 minute(s) per IP.\n\nExample:\n\n    https://xcrap.cc/v1/user/history?handle=naval&max_posts=200&since=2025-01-01",
+        "tags": [
+          "XCrap"
+        ],
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "query",
+            "required": true,
+            "description": "The account to export.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "max_posts",
+            "in": "query",
+            "required": false,
+            "description": "Stop after this many posts, 1 to 1000.",
+            "schema": {
+              "type": "integer",
+              "default": "200"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "description": "Oldest post to include, as a date such as 2025-01-01 or a full ISO timestamp.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "description": "Newest post to include, as a date or a full ISO timestamp.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "include_replies",
+            "in": "query",
+            "required": false,
+            "description": "Include the account's replies to other people.",
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            }
+          },
+          {
+            "name": "include_reposts",
+            "in": "query",
+            "required": false,
+            "description": "Include posts the account reposted from other accounts.",
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "Response format: json, markdown, yaml, csv or html, or ndjson to stream one post per line. Overrides the Accept header.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "markdown",
+                "yaml",
+                "csv",
+                "html",
+                "ndjson"
+              ],
+              "default": "json"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "description": "Skip the cache and refetch from upstream. Use sparingly.",
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountHistory"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "# jack (@jack)\n\njust setting up my twttr"
+              },
+              "application/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/x-ndjson": {
+                "schema": {
+                  "type": "string",
+                  "description": "One Tweet object per line."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or malformed. Check it against this page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The post or account is deleted, suspended, private, or never existed. For a post, reason says which when X tells us: post_deleted, author_protected, author_suspended, withheld, removed_by_x, age_restricted, or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Endpoint budget exhausted. Wait for the period in retry-after, or see the enterprise plan for higher limits.",
+            "headers": {
+              "retry-after": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait."
+              },
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "451": {
+            "description": "That account asked to be excluded from XCrap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Every source refused. Usually brief; retry in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trends": {
+      "get": {
+        "operationId": "trends",
+        "summary": "What is trending",
+        "description": "Current trending topics with the context label X attaches to each. Cached for five minutes rather than five days, because a stale trend list is worse than none.\n\nRate limit: 90 requests per 1 minute(s) per IP.\n\nExample:\n\n    https://xcrap.cc/v1/trends?count=10&format=markdown",
+        "tags": [
+          "XCrap"
+        ],
+        "parameters": [
+          {
+            "name": "count",
+            "in": "query",
+            "required": false,
+            "description": "How many topics, 1 to 50.",
+            "schema": {
+              "type": "integer",
+              "default": "20"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "Response format: json, markdown, yaml, csv or html. Overrides the Accept header.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "markdown",
+                "yaml",
+                "csv",
+                "html"
+              ],
+              "default": "json"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "description": "Skip the cache and refetch from upstream. Use sparingly.",
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Trends"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "# jack (@jack)\n\njust setting up my twttr"
+              },
+              "application/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or malformed. Check it against this page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The post or account is deleted, suspended, private, or never existed. For a post, reason says which when X tells us: post_deleted, author_protected, author_suspended, withheld, removed_by_x, age_restricted, or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Endpoint budget exhausted. Wait for the period in retry-after, or see the enterprise plan for higher limits.",
+            "headers": {
+              "retry-after": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait."
+              },
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "451": {
+            "description": "That account asked to be excluded from XCrap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Every source refused. Usually brief; retry in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/media": {
+      "get": {
+        "operationId": "media",
+        "summary": "List a post's media",
+        "description": "Every file attached to a post: type, dimensions, duration, the author's alt text, every video rendition X encoded, and a ready-made download link for each.\n\nRate limit: 20 requests per 1 minute(s) per IP.\n\nExample:\n\n    https://xcrap.cc/v1/media?url=https://x.com/i/status/1671370010743263233",
+        "tags": [
+          "XCrap"
+        ],
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "The post to inspect.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "Response format: json, markdown, yaml, csv or html. Overrides the Accept header.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "markdown",
+                "yaml",
+                "csv",
+                "html"
+              ],
+              "default": "json"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "description": "Skip the cache and refetch from upstream. Use sparingly.",
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaList"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "# jack (@jack)\n\njust setting up my twttr"
+              },
+              "application/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or malformed. Check it against this page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The post or account is deleted, suspended, private, or never existed. For a post, reason says which when X tells us: post_deleted, author_protected, author_suspended, withheld, removed_by_x, age_restricted, or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Endpoint budget exhausted. Wait for the period in retry-after, or see the enterprise plan for higher limits.",
+            "headers": {
+              "retry-after": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait."
+              },
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "451": {
+            "description": "That account asked to be excluded from XCrap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Every source refused. Usually brief; retry in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/media/download": {
+      "get": {
+        "operationId": "mediaDownload",
+        "summary": "Download one file",
+        "description": "Streams the file straight through with a Content-Disposition header. Nothing is buffered and nothing is written to our disk, which is what the retention promise in the privacy policy means in practice.\n\nRate limit: 20 requests per 1 minute(s) per IP.\n\nExample:\n\n    https://xcrap.cc/v1/media/download?url=https://x.com/i/status/1671370010743263233&index=0",
+        "tags": [
+          "XCrap"
+        ],
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "The post the file belongs to.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "index",
+            "in": "query",
+            "required": false,
+            "description": "Which file, when a post carries several.",
+            "schema": {
+              "type": "integer",
+              "default": "0"
+            }
+          },
+          {
+            "name": "quality",
+            "in": "query",
+            "required": false,
+            "description": "best or worst. Video only; images have one resolution.",
+            "schema": {
+              "type": "string",
+              "default": "best"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or malformed. Check it against this page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The post or account is deleted, suspended, private, or never existed. For a post, reason says which when X tells us: post_deleted, author_protected, author_suspended, withheld, removed_by_x, age_restricted, or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Endpoint budget exhausted. Wait for the period in retry-after, or see the enterprise plan for higher limits.",
+            "headers": {
+              "retry-after": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait."
+              },
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "451": {
+            "description": "That account asked to be excluded from XCrap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Every source refused. Usually brief; retry in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/bulk": {
+      "post": {
+        "operationId": "bulk",
+        "summary": "Up to fifty posts at once",
+        "description": "Resolve many posts in one request. Failures are per item: one dead link returns an error for that entry and every other entry still comes back. GET works too, with repeated or comma-separated url parameters.\n\nRate limit: 6 requests per 5 minute(s) per IP.\n\nExample:\n\n    curl -X POST https://xcrap.cc/v1/bulk \\\n  -H 'content-type: application/json' \\\n  -d '{\"urls\":[\"https://x.com/jack/status/20\",\"1671370010743263233\"]}'",
+        "tags": [
+          "XCrap"
+        ],
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "Response format: json, markdown, yaml, csv or html. Overrides the Accept header.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "markdown",
+                "yaml",
+                "csv",
+                "html"
+              ],
+              "default": "json"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "description": "Skip the cache and refetch from upstream. Use sparingly.",
+            "schema": {
+              "type": "boolean",
+              "default": "false"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "urls"
+                ],
+                "properties": {
+                  "urls": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "One to 50 post URLs or ids."
+                  }
+                }
+              },
+              "example": {
+                "urls": [
+                  "https://x.com/jack/status/20",
+                  "1671370010743263233"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkResult"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "# jack (@jack)\n\njust setting up my twttr"
+              },
+              "application/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter is missing or malformed. Check it against this page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The post or account is deleted, suspended, private, or never existed. For a post, reason says which when X tells us: post_deleted, author_protected, author_suspended, withheld, removed_by_x, age_restricted, or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Endpoint budget exhausted. Wait for the period in retry-after, or see the enterprise plan for higher limits.",
+            "headers": {
+              "retry-after": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait."
+              },
+              "x-ratelimit-limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed in the window for this endpoint."
+              },
+              "x-ratelimit-remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "x-ratelimit-reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix seconds when the window resets."
+              },
+              "x-xcrap-cache": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "hit, miss or bypass."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "451": {
+            "description": "That account asked to be excluded from XCrap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Every source refused. Usually brief; retry in a minute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "screen_name": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "description": {
+            "type": "string"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "avatar_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "banner_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "joined": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "verified_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "blue",
+              "legacy",
+              "individual",
+              "business",
+              "government",
+              null
+            ]
+          },
+          "protected": {
+            "type": "boolean"
+          },
+          "metrics": {
+            "type": "object",
+            "properties": {
+              "posts": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "followers": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "following": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "likes": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "media": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "MediaVariant": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "container": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "mp4",
+              "m3u8",
+              null
+            ]
+          },
+          "bitrate": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "codec": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Media": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "photo",
+              "video",
+              "gif"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "thumbnail_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "duration": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Seconds. Video and GIF only."
+          },
+          "format": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "alt_text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The author's accessibility description."
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaVariant"
+            }
+          }
+        }
+      },
+      "Poll": {
+        "type": "object",
+        "properties": {
+          "total_votes": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "ends_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "votes": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "percent": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "Tweet": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "text": {
+            "type": "string"
+          },
+          "lang": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_timestamp": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Unix seconds."
+          },
+          "author": {
+            "$ref": "#/components/schemas/User"
+          },
+          "metrics": {
+            "type": "object",
+            "description": "null means the source did not report it, not zero.",
+            "properties": {
+              "likes": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "retweets": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "replies": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "quotes": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "bookmarks": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "views": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            }
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Media"
+            }
+          },
+          "poll": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Poll"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quote": {
+            "description": "The quoted post, unnested one level.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Tweet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replying_to": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "replying_to_status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "community_note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "possibly_sensitive": {
+            "type": "boolean"
+          },
+          "visibility": {
+            "description": "What X shows readers about how this post may be seen. null when X says nothing, which is almost always.",
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "notice": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "X's notice on the post, in X's words."
+                  },
+                  "notice_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uri"
+                  },
+                  "reach_limited": {
+                    "type": "boolean",
+                    "description": "X labels the post as shown less widely."
+                  },
+                  "limited_actions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "quote",
+                        "copy_link",
+                        "like",
+                        "poll_vote",
+                        "reply",
+                        "repost",
+                        "bookmark",
+                        "share_via_dm",
+                        "share",
+                        "embed",
+                        "react"
+                      ]
+                    },
+                    "description": "Actions X has turned off on this post."
+                  },
+                  "withheld_in": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Country codes where the post is withheld."
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signals": {
+            "type": "object",
+            "description": "Only with signals=true on /v1/tweet. Facts from public data, not a ranking score or a prediction.",
+            "properties": {
+              "age_seconds": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "in_for_you_window": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "description": "Under 48 hours old, the window X's For You feed draws from."
+              },
+              "new_author_slot": {
+                "type": "string",
+                "enum": [
+                  "possibly_eligible",
+                  "not_eligible",
+                  "unknown"
+                ],
+                "description": "X reserves a slot for authors with at most 1,000 followers, on posts under 48 hours old with under 1,000 Home impressions. Home impressions are not public, so this never says more than possibly."
+              },
+              "engagement_mix": {
+                "type": "object",
+                "properties": {
+                  "replies_per_like": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "quotes_per_like": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "reposts_per_like": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "likes_per_view": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "is_note_tweet": {
+            "type": "boolean",
+            "description": "True for posts over 280 characters."
+          },
+          "entities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "url",
+                    "mention",
+                    "hashtag"
+                  ]
+                },
+                "text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "indices": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "client": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The app the post was made from."
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Thread": {
+        "type": "object",
+        "properties": {
+          "root_id": {
+            "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/User"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True when max_tweets cut the thread short."
+          },
+          "tweets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Tweet"
+            }
+          }
+        }
+      },
+      "Timeline": {
+        "type": "object",
+        "properties": {
+          "handle": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back as ?cursor= for the next page."
+          },
+          "tweets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Tweet"
+            }
+          }
+        }
+      },
+      "SearchResult": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "feed": {
+            "type": "string",
+            "enum": [
+              "latest",
+              "top",
+              "photos",
+              "videos"
+            ]
+          },
+          "since": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Posts on this page."
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back as ?cursor= for the next page."
+          },
+          "tweets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Tweet"
+            }
+          }
+        }
+      },
+      "Replies": {
+        "type": "object",
+        "properties": {
+          "tweet_id": {
+            "type": "string"
+          },
+          "tweet_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "top",
+              "recent"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "description": "Replies returned."
+          },
+          "tweet": {
+            "$ref": "#/components/schemas/Tweet"
+          },
+          "replies": {
+            "type": "array",
+            "description": "Direct replies to the post only.",
+            "items": {
+              "$ref": "#/components/schemas/Tweet"
+            }
+          }
+        }
+      },
+      "UserList": {
+        "type": "object",
+        "properties": {
+          "handle": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "followers",
+              "following"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "description": "Accounts on this page."
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back as ?cursor= for the next page; null on the last one."
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/User"
+            }
+          }
+        }
+      },
+      "AccountHistory": {
+        "type": "object",
+        "properties": {
+          "handle": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "include_replies": {
+            "type": "boolean"
+          },
+          "since": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True when max_posts stopped the walk before the timeline or the date window ran out."
+          },
+          "newest": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "oldest": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "tweets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Tweet"
+            }
+          }
+        }
+      },
+      "Trends": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "trends": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "rank": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "context": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "posts": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "MediaList": {
+        "type": "object",
+        "properties": {
+          "tweet_id": {
+            "type": "string"
+          },
+          "tweet_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "author": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "count": {
+            "type": "integer"
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Media"
+            }
+          }
+        }
+      },
+      "BulkResult": {
+        "type": "object",
+        "properties": {
+          "requested": {
+            "type": "integer"
+          },
+          "succeeded": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean"
+                },
+                "input": {
+                  "type": "string"
+                },
+                "tweet": {
+                  "$ref": "#/components/schemas/Tweet"
+                },
+                "error": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "integer"
+              },
+              "code": {
+                "type": "string",
+                "enum": [
+                  "bad_request",
+                  "not_found",
+                  "rate_limited",
+                  "opted_out",
+                  "internal_error",
+                  "upstream_failed",
+                  "upstream_timeout",
+                  "search_unavailable"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "post_deleted",
+                  "author_protected",
+                  "author_suspended",
+                  "withheld",
+                  "removed_by_x",
+                  "age_restricted",
+                  "unavailable"
+                ],
+                "description": "On a not_found for a post: why it cannot be read, when X says. `unavailable` when it does not."
+              },
+              "message": {
+                "type": "string",
+                "description": "What went wrong."
+              },
+              "hint": {
+                "type": "string",
+                "description": "What to do about it."
+              },
+              "documentation": {
+                "type": "string",
+                "format": "uri"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

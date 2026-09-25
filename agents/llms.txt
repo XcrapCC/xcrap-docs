@@ -1,0 +1,97 @@
+# XCrap
+
+> A free, keyless API that reads public posts, threads and profiles from X
+> (formerly Twitter) and returns them as Markdown, JSON, YAML, CSV or HTML.
+> Built for AI agents. No account, no API key, no cost.
+
+XCrap exists because X's official API starts at $200/month and its free tier
+cannot read posts at all. XCrap reads public accounts only: posts, profiles,
+replies and follower lists. It never reads protected accounts or direct messages.
+
+## Calling it
+
+Base URL: https://xcrap.cc
+Authentication: none. Do not send a key; there isn't one.
+Default format: JSON. Add `?format=markdown` for prompt-ready output.
+Markdown responses include an `x-markdown-tokens` header estimating cost.
+
+- `GET /v1/tweet` — One post, fully resolved. Fetches a single post with its author, every engagement counter, attached media at every bitrate, poll results, and the quoted post unnested one level.
+- `GET /v1/thread` — A whole thread, unrolled in order. Give it any post in a thread, including the first, and it returns the author's posts in reading order.
+- `GET /v1/replies` — The replies under a post. One page of the replies to a post, most liked first or newest first, with the post itself included.
+- `GET /v1/search` — Search posts. Full-text search over X, with the operators X search understands: from:, to:, "exact phrase", -exclude, lang:, filter:links and the rest.
+- `GET /v1/user` — A profile. Bio, location, website, join date, verification type, avatar and banner at full resolution, and the follower, following, post and media counts.
+- `GET /v1/user/tweets` — An account's posts. A page of an account's posts, newest first.
+- `GET /v1/user/followers` — Who follows an account. One page of the accounts following this one, each as a full profile.
+- `GET /v1/user/following` — Who an account follows. One page of the accounts this one follows, each as a full profile.
+- `GET /v1/user/history` — An account's posts, in bulk. Walks an account's timeline and returns up to 1,000 posts in one response, newest first, optionally inside a date window.
+- `GET /v1/trends` — What is trending. Current trending topics with the context label X attaches to each.
+- `GET /v1/media` — List a post's media. Every file attached to a post: type, dimensions, duration, the author's alt text, every video rendition X encoded, and a ready-made download link for each.
+- `GET /v1/media/download` — Download one file. Streams the file straight through with a Content-Disposition header.
+- `POST /v1/bulk` — Up to fifty posts at once. Resolve many posts in one request.
+
+Rate limits are per endpoint per IP:
+- tweet: 45 per 1 min
+- user: 45 per 1 min
+- thread: 15 per 1 min
+- timeline: 15 per 1 min
+- graph: 15 per 1 min
+- replies: 15 per 1 min
+- history: 4 per 5 min
+- search: 10 per 15 min
+- bulk: 6 per 5 min
+- media: 20 per 1 min
+- meta: 90 per 1 min
+- page: 240 per 1 min
+
+## Quick examples
+
+    curl 'https://xcrap.cc/v1/tweet?url=https://x.com/jack/status/20&format=markdown'
+    curl 'https://xcrap.cc/v1/thread?url=<any post in the thread>&format=markdown'
+    curl 'https://xcrap.cc/v1/user?handle=naval&format=markdown'
+    curl 'https://xcrap.cc/v1/search?q=from:nasa%20mars&format=markdown'
+    curl 'https://xcrap.cc/v1/replies?url=<a post>&format=markdown'
+    curl 'https://xcrap.cc/v1/user/history?handle=naval&max_posts=500&format=ndjson'
+
+## Docs
+
+- [API reference](https://xcrap.cc/docs): every parameter and error code.
+- [OpenAPI 3.1](https://xcrap.cc/openapi.json): machine-readable spec.
+- [Agent skill](https://xcrap.cc/skills.md): teaches a model the whole API in one file.
+- [How to use](https://xcrap.cc/how-to-use): website, curl, MCP, SDKs.
+- [FAQ](https://xcrap.cc/faq): 20 questions.
+
+## Integrations
+
+- Hosted MCP server (nothing to install): `https://xcrap.cc/mcp` (Streamable HTTP, no key). Claude Code: `claude mcp add --transport http xcrap https://xcrap.cc/mcp`
+- Local MCP server: `npx -y @xcrapcc/mcp`, or `claude mcp add xcrap -- npx -y @xcrapcc/mcp`
+- Every tool call counts against the same per-IP budget as the API call it wraps.
+- Node SDK: `npm install @xcrapcc/sdk`
+- Python SDK: `pip install xcrap-sdk` (import it as `xcrap`)
+
+## Source code and documentation on GitHub
+
+- [Documentation](https://github.com/XcrapCC/xcrap-docs): API reference, guides, SDK pages, OpenAPI.
+- [Node SDK](https://github.com/XcrapCC/xcrap-node): `@xcrapcc/sdk`, with example bots and a CLI.
+- [Python SDK](https://github.com/XcrapCC/xcrap-python): `xcrap-sdk`, with example bots and a CLI.
+- [MCP server](https://github.com/XcrapCC/Xcrap-mcp): `@xcrapcc/mcp`.
+
+The SDKs and the MCP server are updated with every API change.
+
+## Enterprise
+
+Higher rate limits, dedicated capacity, custom endpoints and priority support for
+products that outgrow the free limits. Contact only: hello@xcrap.cc.
+[Details](https://xcrap.cc/enterprise).
+
+## Limits worth knowing before you try
+
+- Search takes X's own operators (from:, "phrase", lang:) and has the tightest budget: 10 per 15 minutes per IP.
+- Deleted posts are gone. A 404 means gone, not rate-limited.
+- Bulk takes at most 50 URLs per request.
+- Cached content is five days old at most, then deleted.
+
+## Legal
+
+- [Terms](https://xcrap.cc/terms) — you are responsible for what you do with the data.
+- [Privacy](https://xcrap.cc/privacy) — request logs 30 days, content 5 days, media never stored.
+- Opt out: legal@xcrap.cc removes a handle the same day.
